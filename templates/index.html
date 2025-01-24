@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klasifikasi Ras Kucing</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        #video {
+            width: 100%;
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        #canvas {
+            display: none;
+        }
+
+        .result {
+            margin-top: 15px;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        #captured-image,
+        #uploaded-image {
+            width: 100%;
+            max-width: 350px;
+            height: 350px; /* Menetapkan tinggi yang konsisten */
+            object-fit: cover; /* Menjaga rasio aspek gambar */
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #343a40;
+        }
+
+        .img-thumbnail {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+
+        .btn-primary, .btn-danger {
+            transition: background-color 0.3s ease;
+        }
+
+        .btn-primary:hover, .btn-danger:hover {
+            background-color: #007bff;
+            color: white;
+        }
+
+        /* Animasi tombol capture */
+        .btn-capture {
+            background-color: #f44336;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .btn-capture:hover {
+            background-color: #d32f2f;
+        }
+
+        .card-custom {
+            border: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .card-custom .card-body {
+            padding: 20px;
+        }
+
+        .alert-custom {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+
+        /* Styling untuk bagian hasil prediksi */
+        .prediction-card {
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+
+        .prediction-card:hover {
+            transform: scale(1.05);
+        }
+
+        .prediction-card .card-body {
+            padding: 20px;
+        }
+
+        .prediction-card img {
+            border-radius: 10px;
+            width: 100%;
+            height: auto;
+        }
+
+        .result-info {
+            margin-top: 0px;
+        }
+
+        .care-description {
+            margin-top: 15px;
+            text-align: justify;
+        }
+
+        .predicted-class {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #2857a7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row">
+            <!-- Kolom Kiri: Form Upload dan Kamera -->
+            <div class="col-md-4">
+                <h3 class="section-title">Klasifikasi Ras Kucing</h3>
+                
+                <!-- Form Upload -->
+                <div class="card card-custom mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Upload Gambar</h5>
+                        <form action="/predict" method="post" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <input type="file" name="file" accept="image/*" class="form-control">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Upload & Predict</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Video dan Capture -->
+                <div class="card card-custom">
+                    <div class="card-body">
+                        <h5 class="card-title">Capture Gambar</h5>
+                        <video id="video" autoplay></video>
+                        <canvas id="canvas" style="display:none;"></canvas>
+                        <button onclick="openCamera()" class="btn btn-primary w-100 mt-3">Open Camera</button>
+                        <button onclick="captureImage()" class="btn btn-capture w-100 mt-2">Capture Image</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kolom Kanan: Hasil Prediksi -->
+            <div class="col-md-8">
+                {% if predicted_class %}
+                <div class="row">
+                    <div class="col-md-6">
+                        <h3 class="section-title">Hasil Prediksi:</h3>
+                        <div class="prediction-card">
+                            <img id="uploaded-image" src="{{ url_for('static', filename='uploads/' + filename) }}" class="img-thumbnail" alt="Uploaded Image">
+                            <div class="card-body">
+                                <div class="result-info">
+                                    <div class="predicted-class">Kucing ini dikategorikan sebagai Ras {{ predicted_class | capitalize }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <h4 class="section-title">Cara Merawat Kucing {{ predicted_class | capitalize }}:</h4>
+                        <div class="alert alert-custom">
+                            <p style="text-align: justify;">{{ care_instructions }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Kolom Kanan: Hasil Prediksi untuk Capture -->
+            <div class="col-md-12">
+                <div id="prediction-result" class="mt-5" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-4"></div>
+                        <div class="col-md-4">
+                            <h3 class="section-title">Hasil Prediksi:</h3>
+                            <div class="prediction-card">
+                                <img id="captured-image" src="" alt="Captured Image" class="img-thumbnail">
+                                <div class="card-body">
+                                    <div class="result-info">
+                                        <div class="predicted-class">Kucing ini dikategorikan sebagai Ras <span id="predicted-class"></span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <h4 class="section-title">Cara Merawat <span id="predicted-class-name"></span>:</h4>
+                            <div class="alert alert-custom">
+                                <p id="care-instructions"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        let video = document.getElementById("video");
+        let canvas = document.getElementById("canvas");
+        let context = canvas.getContext("2d");
+
+        // Fungsi untuk membuka kamera
+        function openCamera() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" }
+                })
+                .then(function(stream) {
+                    video.srcObject = stream;
+                })
+                .catch(function(error) {
+                    console.log("Error accessing camera: ", error);
+                });
+            } else {
+                alert("Kamera tidak tersedia pada perangkat ini.");
+            }
+        }
+
+        // Fungsi untuk menangkap gambar dari video stream dan mengirim ke server
+        function captureImage() {
+            // Mengatur ukuran canvas sesuai dengan video
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Mengonversi gambar dari canvas menjadi data URL
+            let imageData = canvas.toDataURL("image/jpeg");
+
+            // Menampilkan gambar yang diambil dari kamera di halaman
+            let capturedImage = document.getElementById("captured-image");
+            capturedImage.src = imageData;
+
+            // Membuat form data untuk mengirimkan gambar ke server
+            let formData = new FormData();
+            formData.append("file", imageData);  // Mengirim data URL sebagai file
+
+            // Mengirim gambar ke server Flask
+            fetch('/predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Menampilkan hasil prediksi
+                document.getElementById("predicted-class").textContent = data.predicted_class;
+                document.getElementById("predicted-class-name").textContent = data.predicted_class;
+                document.getElementById("care-instructions").textContent = data.care_instructions;
+                document.getElementById("prediction-result").style.display = "block";  // Menampilkan hasil prediksi
+            })
+            .catch(error => console.error("Error:", error));
+        }
+    </script>
+</body>
+</html>
